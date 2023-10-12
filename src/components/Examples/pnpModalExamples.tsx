@@ -218,6 +218,12 @@ export const PNPModalOther = [
         icon: "logo-near.png",
         path: `${baseURL}near/react-near-modal-example`,
       },
+      {
+        key: "react-everscale-modal-example",
+        title: "Everscale",
+        icon: "logo-everscale.png",
+        path: `${baseURL}everscale/react-everscale-modal-example`,
+      },
     ],
   },
 ];

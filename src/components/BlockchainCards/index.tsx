@@ -1,4 +1,3 @@
-
 import styles from "./styles.module.css";
 
 import Tiles from "@theme/Tiles";
@@ -147,6 +146,12 @@ export const tileGroupsData = [
         title: "Songbird",
         icon: "logo-songbird.png",
         path: "./connect-blockchain/songbird",
+      },
+      {
+        key: "everscale",
+        title: "Everscale",
+        icon: "logo-everscale.png",
+        path: "./connect-blockchain/everscale",
       },
     ],
   },

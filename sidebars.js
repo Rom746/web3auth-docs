@@ -237,6 +237,7 @@ module.exports = {
             "connect-blockchain/aptos",
             "connect-blockchain/cosmos",
             "connect-blockchain/near",
+            "connect-blockchain/everscale",
           ],
           collapsible: true,
           collapsed: false,

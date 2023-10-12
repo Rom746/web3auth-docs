@@ -1,0 +1,195 @@
+---
+title: Integrate Web3Auth with the Everscale Blockchain
+sidebar_label: Everscale
+image: "content-hub/guides/banners/everscale.png"
+displayed_sidebar: docs
+keywords: [everscale, web3auth, authentication, blockchain]
+description: "Integrate Web3Auth with the Everscale Blockchain | Documentation - Web3Auth"
+---
+
+import GetUserInfoSnippet from "@site/src/common/docs/_get-userinfo.mdx";
+
+While using the Web3Auth Web SDK for a non EVM chain like [Everscale](https://everscale.network/) you get a standard provider from which you can get
+the private key of the user. Using this private key, you can use the corresponding libraries of the blockchain to make blockchain calls like getting
+user's `account`, fetch `balance`, `sign transaction`, `send transaction`, `read` from and `write` to the smart contract, etc. We have highlighted a
+few methods here for getting you started quickly on that.
+
+:::note
+
+This reference is for the `Web`, however, you can use Everscale on `Android`, `iOS`, `React Native`, `Flutter`, & `Unity` as well. Please follow our
+reference for [Ethereum](/connect-blockchain/ethereum/), and similarly use Everscale libraries that support the platforms to use the private key and
+make blockchain calls accordingly.
+
+:::
+
+## Installation
+
+```bash npm2yarn
+npm install --save @eversdk/core @eversdk/lib-web @eversdk/appkit
+```
+
+## Initializing Provider
+
+```tsx
+import { Web3Auth } from "@web3auth/modal";
+import { OpenloginAdapter } from "@web3auth/openlogin-adapter";
+
+const web3auth = new Web3Auth({
+  clientId: "BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ", // get it from Web3Auth Dashboard
+  web3AuthNetwork: "sapphire_mainnet",
+  chainConfig: {
+    chainNamespace: "other", // for all non EVM and SOLANA chains, use "other"
+  },
+});
+
+// "other" is supported through @web3auth/openlogin-adapter package.
+const openloginAdapter = new OpenloginAdapter({
+  adapterSettings: {
+    uxMode: "popup",
+  },
+});
+web3auth.configureAdapter(openloginAdapter);
+
+await web3auth.initModal();
+
+const web3authProvider = await web3auth.connect(); // web3auth.provider
+```
+
+## Get User Info
+
+<GetUserInfoSnippet />
+
+## Get Key, Account and Balance
+
+Once a user logs in, the Web3Auth SDK returns a provider. Since Web3Auth doesn't have a native provider for Everscale, we need to directly use the
+private key to make the RPC calls.
+
+Using the function, `web3auth.provider.request({method: "private_key"})` from Web3Auth provider, the application can have access to the user's private
+key. However, we cannot use this key with Everscale EC Curve specific signing functions, hence, we first derive the Everscale Key using the
+`getEverscaleKey()` function.
+
+On the underhood, it uses the `tonClient.crypto.mnemonic_from_entropy()` function, where we pass our Private key. Further we get the public and
+private keys from this using the `tonClient.crypto.mnemonic_derive_sign_keys()` function, and pass them to the `signerKeys` function to create a
+signature. We can use the returned signature to create an Everscale account
+
+For the `deployAccount()`, we use the file `SafeMultisig.abi.json` which given us the ABI of the compiled contract. We use that contract to deploy the
+account.
+
+[Get SafeMultisig.abi.json from this link.](https://github.com/EverSurf/contracts/blob/main/multisig2/build/SafeMultisig.abi.json)
+
+```tsx
+import { Account } from "@eversdk/appkit";
+import { TonClient, signerKeys } from "@eversdk/core";
+import { SafeMultisigContract } from "./abi/SafeMultisig.abi";
+/*
+  Use code from the above Initializing Provider here
+*/
+
+// web3authProvider is web3auth.provider from above
+const privateKey = await web3authProvider.request({ method: "private_key" });
+
+// Get the everscale client
+const tonClient = new TonClient({
+  network: {
+    endpoints: ["https://devnet.evercloud.dev/7768b66385354827847158c2ef411b28/graphql"], // get it from Evercloud Dashboard
+  },
+});
+
+// Get payr keys
+const seed = await tonClient.crypto.mnemonic_from_entropy({
+  entropy: privateKey,
+});
+const keyPair = await tonClient.crypto.mnemonic_derive_sign_keys({
+  phrase: seed.phrase,
+});
+
+const publicKey = keyPair.public;
+
+// Use this keys for the create account
+const account = new Account(SafeMultisigContract, {
+  signer: signerKeys(keyPair),
+  client: tonClient,
+});
+
+const balance = parseInt(await this.account.getBalance());
+```
+
+## Deploy Account and Send Transaction
+
+To deploy a contract, there must be a minimum amount on your account balance. Therefore, to deploy the contract we will use the Giver contract.
+
+[Get giver.abi.json from this link.](https://github.com/senitskiy/sol-compile-node-js/blob/799b90174601d8b52fceb2121f4726d699282dde/giver/giver.abi.json)
+
+```tsx
+import { Account } from "@eversdk/appkit";
+import { TonClient, signerKeys } from "@eversdk/core";
+import { SafeMultisigContract } from "./abi/SafeMultisig.abi";
+import { GiverContract } from "./abi/Giver.abi";
+
+/*
+  Use code from the above Initializing Provider here
+*/
+
+// web3authProvider is web3auth.provider from above
+const privateKey = await web3authProvider.request({ method: "private_key" });
+const tonClient = new TonClient({
+  network: {
+    endpoints: ["https://devnet.evercloud.dev/7768b66385354827847158c2ef411b28/graphql"], // get it from Evercloud Dashboard
+  },
+});
+const seed = await tonClient.crypto.mnemonic_from_entropy({
+  entropy: privateKey,
+});
+const keyPair = await tonClient.crypto.mnemonic_derive_sign_keys({
+  phrase: seed.phrase,
+});
+const publicKey = keyPair.public;
+const account = new Account(SafeMultisigContract, {
+  signer: signerKeys(keyPair),
+  client: tonClient,
+});
+
+// Address of the Giver
+const giverAddress = "0:ece57bcc6c530283becbbd8a3b24d3c5987cdddc3c8b7b33be6e4a6312490415";
+
+// Keypair for the Giver
+const giverKeys = signerKeys({
+  public: "2ada2e65ab8eeab09490e3521415f45b6e42df9c760a639bcf53957550b25a16",
+  secret: "172af540e43a524763dd53b26a066d472a97c4de37d5498170564510608250c3",
+});
+
+// Create Giver's account
+const giverAccount = new Account(GiverContract, {
+  client: tonClient,
+  address: giverAddress,
+  signer: giverKeys,
+});
+
+const giverSendTo = async (address: string, value: number) => {
+  // Run method `sendTransaction` for the Giver. You can use your custom account,
+  // in this case, method name and arguments might vary:
+  return await giverAccount.run("sendTransaction", {
+    dest: address,
+    value,
+    bounce: false,
+  });
+};
+
+// In order to implement giver's logics, we must implement `AccountGiver` interface
+const giver = {
+  account: giverAccount,
+  address: giverAddress,
+  sendTo: async (address: string, value: number) => giverSendTo(address, value),
+};
+
+// Set Giver for a client
+Account.setGiverForClient(tonClient, giver);
+await account.deploy({
+  initFunctionName: "constructor",
+  initInput: {
+    owners: [`0x${publicKey}`],
+    reqConfirms: 1,
+  },
+  useGiver: true,
+});
+```
